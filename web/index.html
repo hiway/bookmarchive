@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookmarchive - Mastodon Bookmark Search</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔖</text></svg>">
+</head>
+<body>
+    <!-- Skip to content link for screen readers -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <!-- Fixed top toolbar -->
+    <header class="toolbar" role="banner">
+        <div class="toolbar-content">
+            <div class="toolbar-left">
+                <h1 class="app-title">
+                    <span class="app-icon" aria-hidden="true">🔖</span>
+                    Bookmarchive
+                </h1>
+                <div class="status-indicators" aria-live="polite" aria-atomic="true">
+                    <span id="connection-status" class="status-indicator" 
+                          title="Connection status">●</span>
+                    <span id="activity-status" class="status-text" 
+                          aria-label="Service activity status">Ready</span>
+                </div>
+            </div>
+            
+            <div class="toolbar-center">
+                <form id="search-form" class="search-form" role="search">
+                    <label for="search-input" class="visually-hidden">Search bookmarks</label>
+                    <input type="search" 
+                           id="search-input" 
+                           class="search-input"
+                           placeholder="Search your bookmarks..."
+                           autocomplete="off"
+                           spellcheck="false">
+                    <button type="submit" class="search-button" aria-label="Search">
+                        <span aria-hidden="true">🔍</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="toolbar-right">
+                <div class="stats" aria-live="polite">
+                    <span class="stat-item">
+                        <span class="stat-label">Total:</span>
+                        <span id="total-count" class="stat-value">--</span>
+                    </span>
+                    <span class="stat-item">
+                        <span class="stat-label">Results:</span>
+                        <span id="results-count" class="stat-value">--</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content area -->
+    <main id="main-content" class="main-content" role="main">
+        <div class="content-container">
+            <!-- Search results area -->
+            <section id="results-section" class="results-section" aria-live="polite" aria-label="Search results">
+                <div id="search-status" class="search-status">
+                    <p>Start typing to search your bookmarks...</p>
+                </div>
+                
+                <div id="results-container" class="results-container" hidden>
+                    <!-- Results will be dynamically populated here -->
+                </div>
+                
+                <!-- Loading indicator -->
+                <div id="loading-indicator" class="loading-indicator" hidden aria-hidden="true">
+                    <div class="spinner"></div>
+                    <span>Searching...</span>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer for additional info -->
+    <footer class="footer" role="contentinfo">
+        <div class="footer-content">
+            <p>
+                <span class="footer-item">Last updated: <time id="last-update">--</time></span>
+                <span class="footer-item">
+                    <a href="#keyboard-shortcuts" class="footer-link" 
+                       aria-describedby="keyboard-help">Keyboard shortcuts</a>
+                </span>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Hidden keyboard shortcuts help -->
+    <div id="keyboard-help" class="visually-hidden">
+        Press / to focus search, Escape to clear, Arrow keys to navigate results
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
