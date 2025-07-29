@@ -24,6 +24,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/McKael/madon/v3"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/peterhellberg/link"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -1129,45 +1130,19 @@ func buildSearchText(bookmark Bookmark, indexedFields []string) string {
 }
 
 func stripHTML(html string) string {
-	content := html
-	content = strings.ReplaceAll(content, "<p>", " ")
-	content = strings.ReplaceAll(content, "</p>", " ")
-	content = strings.ReplaceAll(content, "<br>", " ")
-	content = strings.ReplaceAll(content, "<br/>", " ")
-	content = strings.ReplaceAll(content, "<br />", " ")
+	// Use BlueMondaty's StrictPolicy to strip all HTML tags securely
+	policy := bluemonday.StrictPolicy()
+	// Add space when stripping tags to prevent words from being merged
+	policy = policy.AddSpaceWhenStrippingTag(true)
 
-	for strings.Contains(content, "<a ") {
-		start := strings.Index(content, "<a ")
-		if start == -1 {
-			break
-		}
-		end := strings.Index(content[start:], ">")
-		if end == -1 {
-			break
-		}
-		linkClose := strings.Index(content[start+end+1:], "</a>")
-		if linkClose == -1 {
-			break
-		}
-		linkClose += start + end + 1
+	// Strip all HTML tags and return clean text
+	cleaned := policy.Sanitize(html)
 
-		linkText := content[start+end+1 : linkClose]
-		content = content[:start] + linkText + content[linkClose+4:]
-	}
+	// Clean up extra whitespace
+	cleaned = strings.ReplaceAll(cleaned, "  ", " ")
+	cleaned = strings.TrimSpace(cleaned)
 
-	for strings.Contains(content, "<") && strings.Contains(content, ">") {
-		start := strings.Index(content, "<")
-		end := strings.Index(content[start:], ">")
-		if end == -1 {
-			break
-		}
-		content = content[:start] + content[start+end+1:]
-	}
-
-	content = strings.ReplaceAll(content, "  ", " ")
-	content = strings.TrimSpace(content)
-
-	return content
+	return cleaned
 }
 
 // =============================================================================
