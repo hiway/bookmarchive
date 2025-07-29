@@ -1,0 +1,27 @@
+[mastodon]
+server = ""
+access_token = ""
+client_timeout = "30s"
+
+[database]
+path = "./bookmarchive.db"
+wal_mode = true
+busy_timeout = "15s"
+
+[web]
+listen = "127.0.0.1"
+port = 8080
+
+[polling]
+interval = "1m"
+batch_size = 40
+backfill_delay = "10s"
+
+[logging]
+level = "info"
+format = "console"
+
+[search]
+# Configure which fields should be indexed for full-text search
+# Available options: content, spoiler_text, username, display_name, media_descriptions, hashtags
+indexed_fields = ["content", "spoiler_text", "username", "display_name", "media_descriptions", "hashtags"]
