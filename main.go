@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"embed"
@@ -123,31 +124,78 @@ func loadConfig(path string, cfg interface{}) error {
 	}
 	defer f.Close()
 
-	cfgType := reflect.TypeOf(cfg).Elem()
-	partial := reflect.New(cfgType).Interface()
-	if _, err := toml.NewDecoder(f).Decode(partial); err != nil {
+	// First, read the TOML content to see what fields are actually present
+	content, err := os.ReadFile(path)
+	if err != nil {
 		return err
 	}
 
-	mergeStructs(cfg, partial)
+	// Use bytes.Reader to avoid reading the file twice
+	reader := bytes.NewReader(content)
+
+	// Parse into a map first to see what keys are present
+	var tomlMap map[string]interface{}
+	if _, err := toml.NewDecoder(reader).Decode(&tomlMap); err != nil {
+		return err
+	}
+
+	// Reset reader for the next decode
+	reader.Seek(0, 0)
+
+	// Now decode into the actual struct
+	cfgType := reflect.TypeOf(cfg).Elem()
+	partial := reflect.New(cfgType).Interface()
+	if _, err := toml.NewDecoder(reader).Decode(partial); err != nil {
+		return err
+	}
+
+	mergeStructs(cfg, partial, tomlMap)
 	return nil
 }
 
-func mergeStructs(dst, src interface{}) {
+func mergeStructs(dst, src interface{}, tomlMap map[string]interface{}) {
 	dstVal := reflect.ValueOf(dst).Elem()
 	srcVal := reflect.ValueOf(src).Elem()
+	dstType := dstVal.Type()
+
 	for i := 0; i < dstVal.NumField(); i++ {
 		field := dstVal.Field(i)
 		srcField := srcVal.Field(i)
+		fieldType := dstType.Field(i)
+
+		tomlTag := getTomlTag(fieldType)
+
 		if field.Kind() == reflect.Struct {
-			mergeStructs(field.Addr().Interface(), srcField.Addr().Interface())
+			// For nested structs, check if the section exists in TOML
+			nestedMap := make(map[string]interface{})
+			if sectionMap, ok := tomlMap[tomlTag].(map[string]interface{}); ok {
+				nestedMap = sectionMap
+			}
+
+			mergeStructs(field.Addr().Interface(), srcField.Addr().Interface(), nestedMap)
 		} else {
-			zero := reflect.Zero(field.Type()).Interface()
-			if !reflect.DeepEqual(srcField.Interface(), zero) {
+			// Check if this field was actually present in the TOML
+			if _, fieldPresent := tomlMap[tomlTag]; fieldPresent {
+				// Field was explicitly set in TOML, so merge it regardless of value
 				field.Set(srcField)
+			} else {
+				// Field was not in TOML, so only merge non-zero values
+				zero := reflect.Zero(field.Type()).Interface()
+				if !reflect.DeepEqual(srcField.Interface(), zero) {
+					field.Set(srcField)
+				}
 			}
 		}
 	}
+}
+
+// getTomlTag extracts the TOML tag from a struct field, or uses the field name if not present.
+func getTomlTag(field reflect.StructField) string {
+	tag := field.Tag.Get("toml")
+	if tag != "" {
+		return tag
+	}
+	return field.Name
 }
 
 // =============================================================================
@@ -1013,7 +1061,7 @@ func convertMadonStatusToBookmark(status madon.Status) Bookmark {
 	}
 }
 
-func convertBookmarkToDatabaseWithConfig(bookmark Bookmark, indexedFields []string) *DBBookmark {
+func convertBookmarkToDatabase(bookmark Bookmark, indexedFields []string) *DBBookmark {
 	rawJSON, err := json.Marshal(bookmark)
 	if err != nil {
 		rawJSON = []byte(fmt.Sprintf(`{"id":"%s","status_id":"%s","created_at":"%s"}`,
@@ -1434,7 +1482,7 @@ func (s *BookmarkService) processBookmarkBatch(bookmarks []Bookmark) error {
 			continue
 		}
 
-		dbBookmark := convertBookmarkToDatabaseWithConfig(bookmark, s.config.Search.IndexedFields)
+		dbBookmark := convertBookmarkToDatabase(bookmark, s.config.Search.IndexedFields)
 
 		if err := s.db.insertBookmark(dbBookmark); err != nil {
 			zlog.Error().Err(err).Str("bookmark_id", bookmark.ID).Msg("Failed to insert new bookmark")
