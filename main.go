@@ -298,6 +298,7 @@ type SearchRequest struct {
 type Database struct {
 	db   *sql.DB
 	path string
+	mu   sync.RWMutex
 }
 
 func newDatabase(cfg Config) (*Database, error) {
@@ -358,6 +359,9 @@ func newDatabase(cfg Config) (*Database, error) {
 }
 
 func (d *Database) close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.db == nil {
 		return nil
 	}
@@ -366,12 +370,24 @@ func (d *Database) close() error {
 	return err
 }
 
-func (d *Database) runMigrations() error {
+// getDB safely returns the database connection
+func (d *Database) getDB() (*sql.DB, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	if d.db == nil {
-		return fmt.Errorf("database connection is nil")
+		return nil, fmt.Errorf("database connection is nil")
+	}
+	return d.db, nil
+}
+
+func (d *Database) runMigrations() error {
+	db, err := d.getDB()
+	if err != nil {
+		return err
 	}
 
-	tx, err := d.db.Begin()
+	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin migration transaction: %w", err)
 	}
@@ -436,15 +452,16 @@ func getMigrationStatements() []string {
 }
 
 func (d *Database) insertBookmark(bookmark *DBBookmark) error {
-	if d.db == nil {
-		return fmt.Errorf("database connection is nil")
+	db, err := d.getDB()
+	if err != nil {
+		return err
 	}
 
 	query := `INSERT OR REPLACE INTO bookmarks 
 		(status_id, created_at, bookmarked_at, search_text, raw_json)
 		VALUES (?, ?, ?, ?, ?)`
 
-	_, err := d.db.Exec(query,
+	_, err = db.Exec(query,
 		bookmark.StatusID,
 		bookmark.CreatedAt.UTC(),
 		bookmark.BookmarkedAt.UTC(),
@@ -459,15 +476,16 @@ func (d *Database) insertBookmark(bookmark *DBBookmark) error {
 }
 
 func (d *Database) getBookmark(statusID string) (*DBBookmark, error) {
-	if d.db == nil {
-		return nil, fmt.Errorf("database connection is nil")
+	db, err := d.getDB()
+	if err != nil {
+		return nil, err
 	}
 
 	query := `SELECT status_id, created_at, bookmarked_at, search_text, raw_json
 		FROM bookmarks WHERE status_id = ?`
 
 	var bookmark DBBookmark
-	err := d.db.QueryRow(query, statusID).Scan(
+	err = db.QueryRow(query, statusID).Scan(
 		&bookmark.StatusID,
 		&bookmark.CreatedAt,
 		&bookmark.BookmarkedAt,
@@ -485,8 +503,9 @@ func (d *Database) getBookmark(statusID string) (*DBBookmark, error) {
 }
 
 func (d *Database) getBackfillState() (*BackfillState, error) {
-	if d.db == nil {
-		return nil, fmt.Errorf("database connection is nil")
+	db, err := d.getDB()
+	if err != nil {
+		return nil, err
 	}
 
 	var state BackfillState
@@ -496,7 +515,7 @@ func (d *Database) getBackfillState() (*BackfillState, error) {
 	query := `SELECT last_processed_id, backfill_complete, last_poll_time, created_at, updated_at
 		FROM backfill_state WHERE id = 1`
 
-	err := d.db.QueryRow(query).Scan(
+	err = db.QueryRow(query).Scan(
 		&lastProcessedID,
 		&state.BackfillComplete,
 		&lastPollTime,
@@ -522,8 +541,9 @@ func (d *Database) getBackfillState() (*BackfillState, error) {
 }
 
 func (d *Database) updateBackfillState(lastProcessedID string, backfillComplete bool, lastPollTime *time.Time) error {
-	if d.db == nil {
-		return fmt.Errorf("database connection is nil")
+	db, err := d.getDB()
+	if err != nil {
+		return err
 	}
 
 	query := `UPDATE backfill_state 
@@ -535,7 +555,7 @@ func (d *Database) updateBackfillState(lastProcessedID string, backfillComplete 
 		lastPollTimeParam = lastPollTime.UTC()
 	}
 
-	result, err := d.db.Exec(query, lastProcessedID, backfillComplete, lastPollTimeParam)
+	result, err := db.Exec(query, lastProcessedID, backfillComplete, lastPollTimeParam)
 	if err != nil {
 		return fmt.Errorf("failed to update backfill state: %w", err)
 	}
@@ -1734,6 +1754,8 @@ func (ws *WebServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ws.broadcaster.addClient(client)
 	defer ws.broadcaster.removeClient(client)
 
+	ctx := r.Context()
+
 	fmt.Fprint(w, "data: {\"type\":\"connected\"}\n\n")
 	if flusher, ok := w.(http.Flusher); ok {
 		flusher.Flush()
@@ -1749,12 +1771,13 @@ func (ws *WebServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 					"total_bookmarks": totalCount,
 				},
 			}:
+			case <-ctx.Done():
+				return
 			default:
 			}
 		}
 	}()
 
-	ctx := r.Context()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
