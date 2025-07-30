@@ -6,7 +6,7 @@ import (
 )
 
 // =============================================================================
-// MAIN FUNCTION TESTS  
+// MAIN FUNCTION TESTS
 // =============================================================================
 
 func TestMain_WithConfigFile(t *testing.T) {
@@ -17,7 +17,7 @@ func TestMain_WithConfigFile(t *testing.T) {
 	// Create a temporary config file
 	tmpDir := t.TempDir()
 	configPath := tmpDir + "/test-config.toml"
-	
+
 	configContent := `
 [mastodon]
 server = "https://mastodon.example.com"
@@ -42,14 +42,14 @@ indexed_fields = ["content"]
 	// Set up arguments to simulate command line usage
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	
+
 	os.Args = []string{"bookmarchive", "-config", configPath}
 
 	// Since main() blocks, we would need to run it in a goroutine
 	// and then send a signal, but that's complex for a unit test.
 	// For now, we'll test that it can parse arguments correctly
 	// by calling the setup parts directly.
-	
+
 	// This tests that main can be called without panicking
 	// In a real scenario, main() would need signal handling
 	defer func() {
@@ -70,7 +70,7 @@ func TestMain_WithInvalidConfig(t *testing.T) {
 	// Set up arguments with non-existent config file
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	
+
 	os.Args = []string{"bookmarchive", "-config", "/non/existent/config.toml"}
 
 	// Main should handle this gracefully

@@ -252,7 +252,7 @@ func TestBookmarchiveApp_Stop_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error stopping app, got %v", err)
 	}
-	
+
 	// Give time for graceful shutdown
 	time.Sleep(50 * time.Millisecond)
 }
@@ -364,7 +364,7 @@ func TestBookmarchiveApp_Run_WithSignal(t *testing.T) {
 		t.Error("App did not finish within timeout")
 		app.stop() // Force stop
 	}
-	
+
 	// Give time for cleanup
 	time.Sleep(100 * time.Millisecond)
 }
@@ -376,7 +376,7 @@ func TestBookmarchiveApp_Run_WithSignal(t *testing.T) {
 func TestSetupLogging_Console(t *testing.T) {
 	// Test console logging setup
 	setupLogging("info", "console")
-	
+
 	// We can't easily test the actual logging output, but we can verify
 	// the function doesn't panic and completes successfully
 }
@@ -384,14 +384,14 @@ func TestSetupLogging_Console(t *testing.T) {
 func TestSetupLogging_JSON(t *testing.T) {
 	// Test JSON logging setup
 	setupLogging("debug", "json")
-	
+
 	// We can't easily test the actual logging output, but we can verify
 	// the function doesn't panic and completes successfully
 }
 
 func TestSetupLogging_AllLevels(t *testing.T) {
 	levels := []string{"trace", "debug", "info", "warn", "error", "fatal", "panic"}
-	
+
 	for _, level := range levels {
 		t.Run("level_"+level, func(t *testing.T) {
 			setupLogging(level, "console")
@@ -403,13 +403,13 @@ func TestSetupLogging_AllLevels(t *testing.T) {
 func TestSetupLogging_InvalidLevel(t *testing.T) {
 	// Test with invalid log level (should default to info)
 	setupLogging("invalid", "console")
-	
+
 	// Should not panic and should default to info level
 }
 
 func TestSetupLogging_WithCaller(t *testing.T) {
 	// Test that debug/trace levels enable caller info
 	setupLogging("debug", "console")
-	
+
 	// Should not panic
 }
