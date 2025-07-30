@@ -153,7 +153,9 @@ func loadConfig(path string, cfg interface{}) error {
 	}
 
 	// Reset reader for the next decode
-	reader.Seek(0, 0)
+	if _, err := reader.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to reset reader: %w", err)
+	}
 
 	// Now decode into the actual struct
 	cfgType := reflect.TypeOf(cfg).Elem()
@@ -373,7 +375,11 @@ func (d *Database) runMigrations() error {
 	if err != nil {
 		return fmt.Errorf("failed to begin migration transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			zlog.Warn().Err(err).Msg("failed to rollback migration transaction")
+		}
+	}()
 
 	for _, stmt := range getMigrationStatements() {
 		if _, err := tx.Exec(stmt); err != nil {
@@ -738,7 +744,7 @@ func prepareFTS5Query(query string) string {
 	return query
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -1487,7 +1493,7 @@ func (s *BookmarkService) processBookmarkBatch(bookmarks []Bookmark) error {
 					"bookmark_id":     bookmark.ID,
 					"status_id":       bookmark.Status.ID,
 					"username":        bookmark.Status.Account.Username,
-					"content_preview": stripHTML(bookmark.Status.Content)[:min(100, len(stripHTML(bookmark.Status.Content)))],
+					"content_preview": stripHTML(bookmark.Status.Content)[:minInt(100, len(stripHTML(bookmark.Status.Content)))],
 					"processed_count": actualProcessed,
 					"total_count":     len(bookmarks),
 				},
@@ -1640,7 +1646,9 @@ func (ws *WebServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		zlog.Error().Err(err).Msg("failed to write response data")
+	}
 }
 
 func (ws *WebServer) handleSearch(w http.ResponseWriter, r *http.Request) {

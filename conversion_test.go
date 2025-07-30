@@ -440,9 +440,9 @@ func TestMin_BasicCases(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := min(test.a, test.b)
+		result := minInt(test.a, test.b)
 		if result != test.expected {
-			t.Errorf("min(%d, %d) = %d, expected %d", test.a, test.b, result, test.expected)
+			t.Errorf("minInt(%d, %d) = %d, expected %d", test.a, test.b, result, test.expected)
 		}
 	}
 }

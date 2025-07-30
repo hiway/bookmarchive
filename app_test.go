@@ -83,7 +83,9 @@ func TestNewBookmarchiveApp_Success(t *testing.T) {
 	}
 
 	// Clean up
-	app.stop()
+	if err := app.stop(); err != nil {
+		t.Errorf("Expected no error stopping app, got %v", err)
+	}
 }
 
 func TestNewBookmarchiveApp_DatabaseError(t *testing.T) {
@@ -109,7 +111,9 @@ func TestNewBookmarchiveApp_DatabaseError(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error due to invalid database path")
 		if app != nil {
-			app.stop()
+			if stopErr := app.stop(); stopErr != nil {
+				t.Errorf("Error stopping app: %v", stopErr)
+			}
 		}
 	}
 
@@ -144,7 +148,9 @@ func TestNewBookmarchiveApp_MastodonClientError(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error due to invalid mastodon config")
 		if app != nil {
-			app.stop()
+			if stopErr := app.stop(); stopErr != nil {
+				t.Errorf("Error stopping app: %v", stopErr)
+			}
 		}
 	}
 
@@ -201,7 +207,9 @@ func TestBookmarchiveApp_Start_Success(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Clean up - graceful shutdown with time for cleanup
-	app.stop()
+	if err := app.stop(); err != nil {
+		t.Errorf("Error stopping app: %v", err)
+	}
 	time.Sleep(50 * time.Millisecond)
 }
 
@@ -245,7 +253,9 @@ func TestBookmarchiveApp_Stop_Success(t *testing.T) {
 	}
 
 	// Start and then stop
-	app.start()
+	if err := app.start(); err != nil {
+		t.Fatalf("Expected no error starting app, got %v", err)
+	}
 	time.Sleep(100 * time.Millisecond)
 
 	err = app.stop()
@@ -362,7 +372,9 @@ func TestBookmarchiveApp_Run_WithSignal(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Error("App did not finish within timeout")
-		app.stop() // Force stop
+		if err := app.stop(); err != nil {
+			t.Errorf("Error force stopping app: %v", err)
+		} // Force stop
 	}
 
 	// Give time for cleanup

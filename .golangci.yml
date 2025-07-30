@@ -1,0 +1,78 @@
+# golangci-lint configuration
+# See: https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - misspell
+    - gofmt
+    - goimports
+    - gocritic
+    - gosec
+    - gocyclo
+    - dupl
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - nolintlint
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  staticcheck:
+    # Disable SA5011 (possible nil pointer dereference) for test files
+    # where we're using t.Fatal() which stops execution
+    checks: ["all", "-SA5011"]
+  
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked (covered by errcheck)
+      - G306 # Expect WriteFile permissions to be 0600 or less (config files can be world-readable)
+  
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - ifElseChain
+      - hugeParam  # Allow functions with large parameters for clarity
+      - rangeValCopy  # Allow range value copying for clarity in tests
+      - unnecessaryDefer  # Allow defer even if before return for safety
+      - sprintfQuotedString  # Allow %s for consistency
+      - equalFold  # Allow strings.ToLower for clarity
+
+issues:
+  exclude-rules:
+    # Exclude SA5011 for test files specifically where we check for nil then t.Fatal()
+    - path: _test\.go
+      linters:
+        - staticcheck
+      text: "SA5011"
+    
+    # Allow longer lines in test files for readability
+    - path: _test\.go
+      linters:
+        - lll
+
+  # Don't hide multiple issues of the same type
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true

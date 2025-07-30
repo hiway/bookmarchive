@@ -1077,7 +1077,10 @@ func TestBookmarkService_RunBackfill_WithNextURL(t *testing.T) {
 	}
 
 	// Verify bookmark was processed
-	dbBookmark, _ := db.getBookmark("batch-status")
+	dbBookmark, err := db.getBookmark("batch-status")
+	if err != nil {
+		t.Errorf("Error getting bookmark: %v", err)
+	}
 	if dbBookmark == nil {
 		t.Error("Expected bookmark to be processed during backfill")
 	}

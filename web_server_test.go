@@ -422,7 +422,10 @@ func TestWebServer_HandleSearch_Success(t *testing.T) {
 		SnippetLength:      100,
 	}
 
-	requestBody, _ := json.Marshal(searchRequest)
+	requestBody, err := json.Marshal(searchRequest)
+	if err != nil {
+		t.Fatalf("Failed to marshal search request: %v", err)
+	}
 	req := httptest.NewRequest("POST", "/api/search", bytes.NewReader(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -469,7 +472,10 @@ func TestWebServer_HandleSearch_EmptyQuery(t *testing.T) {
 		Limit: 10,
 	}
 
-	requestBody, _ := json.Marshal(searchRequest)
+	requestBody, err := json.Marshal(searchRequest)
+	if err != nil {
+		t.Fatalf("Failed to marshal search request: %v", err)
+	}
 	req := httptest.NewRequest("POST", "/api/search", bytes.NewReader(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -886,7 +892,10 @@ func TestWebServer_HandleSearch_DatabaseError(t *testing.T) {
 		Limit: 10,
 	}
 
-	requestBody, _ := json.Marshal(searchRequest)
+	requestBody, err := json.Marshal(searchRequest)
+	if err != nil {
+		t.Fatalf("Failed to marshal search request: %v", err)
+	}
 	req := httptest.NewRequest("POST", "/api/search", bytes.NewReader(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

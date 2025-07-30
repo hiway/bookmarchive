@@ -50,27 +50,6 @@ func createTestBookmark(statusID string, content string) *DBBookmark {
 	}
 }
 
-func createTestBookmarkWithCustomData(statusID, content, username, displayName string, tags []string) *DBBookmark {
-	now := time.Now()
-
-	searchParts := []string{content}
-	if username != "" {
-		searchParts = append(searchParts, username)
-	}
-	if displayName != "" {
-		searchParts = append(searchParts, displayName)
-	}
-	searchParts = append(searchParts, tags...)
-
-	return &DBBookmark{
-		StatusID:     statusID,
-		CreatedAt:    now.Add(-time.Hour),
-		BookmarkedAt: now,
-		SearchText:   strings.Join(searchParts, " "),
-		RawJSON:      `{"id":"` + statusID + `","content":"` + content + `","username":"` + username + `"}`,
-	}
-}
-
 // =============================================================================
 // DATABASE CREATION AND CONFIGURATION TESTS
 // =============================================================================
