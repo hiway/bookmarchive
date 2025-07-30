@@ -7,6 +7,7 @@ toolchain go1.23.11
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/McKael/madon/v3 v3.0.2
+	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/peterhellberg/link v1.2.0
 	github.com/rs/zerolog v1.34.0
 	modernc.org/sqlite v1.38.1
@@ -20,7 +21,6 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

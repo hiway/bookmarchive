@@ -35,6 +35,18 @@ import (
 var webFS embed.FS
 
 // =============================================================================
+// VERSION INFORMATION
+// =============================================================================
+
+// Version information set by build process
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+	builtBy = "unknown"
+)
+
+// =============================================================================
 // CONFIGURATION
 // =============================================================================
 
@@ -1951,7 +1963,34 @@ func main() {
 	configPath := flag.String("config", "config.toml", "path to configuration file")
 	logLevel := flag.String("l", "", "log level (trace, debug, info, warn, error, fatal, panic)")
 	logLevelLong := flag.String("log-level", "", "log level (trace, debug, info, warn, error, fatal, panic)")
+	showVersion := flag.Bool("version", false, "show version information")
+	showHelp := flag.Bool("help", false, "show help information")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("bookmarchive %s\n", version)
+		fmt.Printf("  commit: %s\n", commit)
+		fmt.Printf("  built: %s\n", date)
+		fmt.Printf("  built by: %s\n", builtBy)
+		return
+	}
+
+	if *showHelp {
+		fmt.Println("bookmarchive - Archive and search your Fediverse bookmarks")
+		fmt.Println()
+		fmt.Println("Usage:")
+		fmt.Printf("  %s [options]\n", os.Args[0])
+		fmt.Println()
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+		fmt.Println()
+		fmt.Println("Configuration:")
+		fmt.Println("  Copy config.toml.sample to config.toml and edit as needed.")
+		fmt.Println("  The application will create a SQLite database at the configured path.")
+		fmt.Println()
+		fmt.Printf("Version: %s (%s)\n", version, commit)
+		return
+	}
 
 	var cliLogLevel string
 	if *logLevel != "" {

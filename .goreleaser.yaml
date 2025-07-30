@@ -1,0 +1,91 @@
+# GoReleaser configuration for bookmarchive
+# See: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Run tests before building
+    - go test ./...
+    - go mod tidy
+
+builds:
+  - id: bookmarchive
+    main: .
+    binary: bookmarchive
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    goos:
+      - linux
+      - darwin
+      - freebsd
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: bookmarchive
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - config.toml.sample
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^style:"
+  groups:
+    - title: Features
+      regexp: "^.*?feat(\\(.+\\))??!?:.+$"
+      order: 0
+    - title: "Bug fixes"
+      regexp: "^.*?fix(\\(.+\\))??!?:.+$"
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: hiway
+    name: bookmarchive
+  name_template: "{{.ProjectName}} v{{.Version}}"
+  header: |
+    ## BookmArchive v{{ .Version }}
+    
+    This release includes binaries for multiple platforms. Download the appropriate archive for your system.
+  footer: |
+    ## Installation
+    
+    1. Download the appropriate archive for your operating system and architecture
+    2. Extract the archive
+    3. Copy the `bookmarchive` binary to a directory in your PATH
+    4. Copy `config.toml.sample` to `config.toml` and configure as needed
+    
+    ## Checksums
+    
+    Verify your download using the checksums in `checksums.txt`.
+    
+    **Full Changelog**: https://github.com/hiway/bookmarchive/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Universal binaries for macOS (optional, combines amd64 and arm64)
+universal_binaries:
+  - id: bookmarchive
+    replace: true
+    name_template: "bookmarchive"
