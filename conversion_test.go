@@ -516,7 +516,7 @@ func TestDatabase_FullWorkflow_InsertSearchRetrieve(t *testing.T) {
 	}
 
 	// Test recent bookmarks
-	recentResults, err := db.getRecentBookmarks(10, 0)
+	recentResults, err := db.getRecentBookmarks(10, 0, "")
 	if err != nil {
 		t.Fatalf("Recent bookmarks retrieval failed: %v", err)
 	}
@@ -642,7 +642,7 @@ func TestDatabase_LargeDataset(t *testing.T) {
 	}
 
 	// Test recent bookmarks with large dataset
-	recentResults, err := db.getRecentBookmarks(25, 25)
+	recentResults, err := db.getRecentBookmarks(25, 25, "")
 	if err != nil {
 		t.Fatalf("Large dataset recent bookmarks failed: %v", err)
 	}

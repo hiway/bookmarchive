@@ -267,6 +267,7 @@ type DBBookmark struct {
 	BookmarkedAt time.Time `json:"bookmarked_at"`
 	SearchText   string    `json:"search_text"`
 	RawJSON      string    `json:"raw_json"`
+	AccountID    string    `json:"account_id"`
 }
 
 type BackfillState struct {
@@ -289,6 +290,17 @@ type SearchRequest struct {
 	Offset             int    `json:"offset,omitempty"`
 	EnableHighlighting bool   `json:"enable_highlighting,omitempty"`
 	SnippetLength      int    `json:"snippet_length,omitempty"`
+	FilterByAccount    string `json:"filter_by_account,omitempty"`
+}
+
+type UserAccount struct {
+	AccountID   string    `json:"account_id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	Acct        string    `json:"acct"`
+	Avatar      string    `json:"avatar"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // =============================================================================
@@ -398,6 +410,34 @@ func (d *Database) runMigrations() error {
 	}()
 
 	for _, stmt := range getMigrationStatements() {
+		// Handle special case for ALTER TABLE ADD COLUMN account_id
+		if stmt == `ALTER TABLE bookmarks ADD COLUMN account_id TEXT` {
+			// Check if column already exists
+			var count int
+			err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('bookmarks') WHERE name = 'account_id'`).Scan(&count)
+			if err != nil {
+				return fmt.Errorf("failed to check for account_id column existence: %w", err)
+			}
+			if count > 0 {
+				// Column already exists, skip this migration
+				continue
+			}
+		}
+
+		// Handle special case for account_id index creation
+		if stmt == `CREATE INDEX IF NOT EXISTS idx_account_id ON bookmarks(account_id)` {
+			// Check if column exists before creating index
+			var count int
+			err := tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('bookmarks') WHERE name = 'account_id'`).Scan(&count)
+			if err != nil {
+				return fmt.Errorf("failed to check for account_id column existence for index: %w", err)
+			}
+			if count == 0 {
+				// Column doesn't exist yet, skip index creation
+				continue
+			}
+		}
+
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("failed to execute migration statement: %w", err)
 		}
@@ -448,6 +488,24 @@ func getMigrationStatements() []string {
 			CHECK (id = 1)
 		)`,
 		`INSERT OR IGNORE INTO backfill_state (id) VALUES (1)`,
+		`ALTER TABLE bookmarks ADD COLUMN account_id TEXT`,
+		`CREATE INDEX IF NOT EXISTS idx_account_id ON bookmarks(account_id)`,
+		`CREATE TABLE IF NOT EXISTS user_account (
+			id INTEGER PRIMARY KEY DEFAULT 1,
+			account_id TEXT NOT NULL,
+			username TEXT NOT NULL,
+			display_name TEXT NOT NULL,
+			acct TEXT NOT NULL,
+			avatar TEXT,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CHECK (id = 1)
+		)`,
+		// Populate account_id from existing raw_json data
+		`UPDATE bookmarks SET account_id = (
+			SELECT json_extract(raw_json, '$.status.account.id')
+			WHERE json_extract(raw_json, '$.status.account.id') IS NOT NULL
+		) WHERE account_id IS NULL`,
 	}
 }
 
@@ -458,8 +516,8 @@ func (d *Database) insertBookmark(bookmark *DBBookmark) error {
 	}
 
 	query := `INSERT OR REPLACE INTO bookmarks 
-		(status_id, created_at, bookmarked_at, search_text, raw_json)
-		VALUES (?, ?, ?, ?, ?)`
+		(status_id, created_at, bookmarked_at, search_text, raw_json, account_id)
+		VALUES (?, ?, ?, ?, ?, ?)`
 
 	_, err = db.Exec(query,
 		bookmark.StatusID,
@@ -467,6 +525,7 @@ func (d *Database) insertBookmark(bookmark *DBBookmark) error {
 		bookmark.BookmarkedAt.UTC(),
 		bookmark.SearchText,
 		bookmark.RawJSON,
+		bookmark.AccountID,
 	)
 
 	if err != nil {
@@ -481,7 +540,7 @@ func (d *Database) getBookmark(statusID string) (*DBBookmark, error) {
 		return nil, err
 	}
 
-	query := `SELECT status_id, created_at, bookmarked_at, search_text, raw_json
+	query := `SELECT status_id, created_at, bookmarked_at, search_text, raw_json, COALESCE(account_id, '') as account_id
 		FROM bookmarks WHERE status_id = ?`
 
 	var bookmark DBBookmark
@@ -491,6 +550,7 @@ func (d *Database) getBookmark(statusID string) (*DBBookmark, error) {
 		&bookmark.BookmarkedAt,
 		&bookmark.SearchText,
 		&bookmark.RawJSON,
+		&bookmark.AccountID,
 	)
 
 	if err != nil {
@@ -538,6 +598,59 @@ func (d *Database) getBackfillState() (*BackfillState, error) {
 	}
 
 	return &state, nil
+}
+
+func (d *Database) insertUserAccount(account *UserAccount) error {
+	db, err := d.getDB()
+	if err != nil {
+		return err
+	}
+
+	query := `INSERT OR REPLACE INTO user_account 
+		(id, account_id, username, display_name, acct, avatar, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+
+	_, err = db.Exec(query,
+		account.AccountID,
+		account.Username,
+		account.DisplayName,
+		account.Acct,
+		account.Avatar,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to insert user account: %w", err)
+	}
+	return nil
+}
+
+func (d *Database) getUserAccount() (*UserAccount, error) {
+	db, err := d.getDB()
+	if err != nil {
+		return nil, err
+	}
+
+	query := `SELECT account_id, username, display_name, acct, COALESCE(avatar, '') as avatar, created_at, updated_at
+		FROM user_account WHERE id = 1`
+
+	var account UserAccount
+	err = db.QueryRow(query).Scan(
+		&account.AccountID,
+		&account.Username,
+		&account.DisplayName,
+		&account.Acct,
+		&account.Avatar,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get user account: %w", err)
+	}
+	return &account, nil
 }
 
 func (d *Database) updateBackfillState(lastProcessedID string, backfillComplete bool, lastPollTime *time.Time) error {
@@ -600,29 +713,55 @@ func (d *Database) searchBookmarksWithFTS5(request *SearchRequest) ([]*SearchRes
 	var query string
 	var args []interface{}
 
+	// Build WHERE clause for account filtering
+	accountFilter := ""
+	var userAccountID string
+	if request.FilterByAccount == "my_posts" {
+		// Get current user account to filter by
+		userAccount, err := d.getUserAccount()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user account for filtering: %w", err)
+		}
+		if userAccount != nil {
+			accountFilter = " AND b.account_id = ?"
+			userAccountID = userAccount.AccountID
+		} else {
+			// No user account configured, return empty results for my_posts filter
+			return []*SearchResult{}, nil
+		}
+	}
+
 	if request.EnableHighlighting {
 		query = `
 			SELECT 
-				b.status_id, b.created_at, b.bookmarked_at, b.search_text, b.raw_json,
+				b.status_id, b.created_at, b.bookmarked_at, b.search_text, b.raw_json, COALESCE(b.account_id, '') as account_id,
 				bm25(bookmarks_fts) as rank,
 				snippet(bookmarks_fts, 1, '<mark>', '</mark>', '...', ?) as snippet
 			FROM bookmarks_fts
 			JOIN bookmarks b ON b.rowid = bookmarks_fts.rowid
-			WHERE bookmarks_fts MATCH ?
+			WHERE bookmarks_fts MATCH ?` + accountFilter + `
 			ORDER BY rank
 			LIMIT ? OFFSET ?`
-		args = []interface{}{snippetLength, searchQuery, limit, offset}
+		args = []interface{}{snippetLength, searchQuery}
+		if accountFilter != "" {
+			args = append(args, userAccountID)
+		}
+		args = append(args, limit, offset)
 	} else {
 		query = `
 			SELECT 
-				b.status_id, b.created_at, b.bookmarked_at, b.search_text, b.raw_json,
+				b.status_id, b.created_at, b.bookmarked_at, b.search_text, b.raw_json, COALESCE(b.account_id, '') as account_id,
 				bm25(bookmarks_fts) as rank
 			FROM bookmarks_fts
 			JOIN bookmarks b ON b.rowid = bookmarks_fts.rowid
-			WHERE bookmarks_fts MATCH ?
+			WHERE bookmarks_fts MATCH ?` + accountFilter + `
 			ORDER BY rank
 			LIMIT ? OFFSET ?`
-		args = []interface{}{searchQuery, limit, offset}
+		args = []interface{}{searchQuery}
+		if accountFilter != "" {
+			args = append(args, userAccountID)
+		}
+		args = append(args, limit, offset)
 	}
 
 	rows, err := d.db.Query(query, args...)
@@ -631,7 +770,7 @@ func (d *Database) searchBookmarksWithFTS5(request *SearchRequest) ([]*SearchRes
 	}
 	defer rows.Close()
 
-	var results []*SearchResult
+	results := []*SearchResult{}
 	for rows.Next() {
 		var bookmark DBBookmark
 		var rank float64
@@ -644,6 +783,7 @@ func (d *Database) searchBookmarksWithFTS5(request *SearchRequest) ([]*SearchRes
 				&bookmark.BookmarkedAt,
 				&bookmark.SearchText,
 				&bookmark.RawJSON,
+				&bookmark.AccountID,
 				&rank,
 				&snippet,
 			)
@@ -654,6 +794,7 @@ func (d *Database) searchBookmarksWithFTS5(request *SearchRequest) ([]*SearchRes
 				&bookmark.BookmarkedAt,
 				&bookmark.SearchText,
 				&bookmark.RawJSON,
+				&bookmark.AccountID,
 				&rank,
 			)
 		}
@@ -681,7 +822,7 @@ func (d *Database) searchBookmarksWithFTS5(request *SearchRequest) ([]*SearchRes
 	return results, nil
 }
 
-func (d *Database) getRecentBookmarks(limit, offset int) ([]*SearchResult, error) {
+func (d *Database) getRecentBookmarks(limit, offset int, filterByAccount string) ([]*SearchResult, error) {
 	if d.db == nil {
 		return nil, fmt.Errorf("database connection is nil")
 	}
@@ -693,16 +834,37 @@ func (d *Database) getRecentBookmarks(limit, offset int) ([]*SearchResult, error
 		offset = 0
 	}
 
-	query := `SELECT status_id, created_at, bookmarked_at, search_text, raw_json
-		FROM bookmarks ORDER BY bookmarked_at DESC LIMIT ? OFFSET ?`
+	var query string
+	var args []interface{}
 
-	rows, err := d.db.Query(query, limit, offset)
+	// Build WHERE clause for account filtering
+	accountFilter := ""
+	if filterByAccount == "my_posts" {
+		// Get current user account to filter by
+		userAccount, err := d.getUserAccount()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user account for filtering: %w", err)
+		}
+		if userAccount != nil {
+			accountFilter = " WHERE account_id = ?"
+			args = append(args, userAccount.AccountID)
+		} else {
+			// No user account configured, return empty results for my_posts filter
+			return []*SearchResult{}, nil
+		}
+	}
+
+	query = `SELECT status_id, created_at, bookmarked_at, search_text, raw_json, COALESCE(account_id, '') as account_id
+		FROM bookmarks` + accountFilter + ` ORDER BY bookmarked_at DESC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := d.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute recent bookmarks query: %w", err)
 	}
 	defer rows.Close()
 
-	var results []*SearchResult
+	results := []*SearchResult{}
 	for rows.Next() {
 		var bookmark DBBookmark
 
@@ -712,6 +874,7 @@ func (d *Database) getRecentBookmarks(limit, offset int) ([]*SearchResult, error
 			&bookmark.BookmarkedAt,
 			&bookmark.SearchText,
 			&bookmark.RawJSON,
+			&bookmark.AccountID,
 		)
 
 		if err != nil {
@@ -734,7 +897,7 @@ func (d *Database) getRecentBookmarks(limit, offset int) ([]*SearchResult, error
 
 func (d *Database) searchOrRecentBookmarks(request *SearchRequest) ([]*SearchResult, error) {
 	if strings.TrimSpace(request.Query) == "" {
-		return d.getRecentBookmarks(request.Limit, request.Offset)
+		return d.getRecentBookmarks(request.Limit, request.Offset, request.FilterByAccount)
 	}
 	return d.searchBookmarksWithFTS5(request)
 }
@@ -1111,12 +1274,19 @@ func convertBookmarkToDatabase(bookmark Bookmark, indexedFields []string) *DBBoo
 
 	searchText := buildSearchText(bookmark, indexedFields)
 
+	// Extract account_id from the status account
+	accountID := ""
+	if bookmark.Status.Account.ID != "" {
+		accountID = bookmark.Status.Account.ID
+	}
+
 	return &DBBookmark{
 		StatusID:     bookmark.Status.ID,
 		CreatedAt:    bookmark.Status.CreatedAt,
 		BookmarkedAt: bookmark.CreatedAt,
 		SearchText:   searchText,
 		RawJSON:      string(rawJSON),
+		AccountID:    accountID,
 	}
 }
 
@@ -1254,9 +1424,31 @@ func (s *BookmarkService) createBookmarkClient() (BookmarkClient, error) {
 		return nil, fmt.Errorf("failed to verify mastodon credentials: %w", err)
 	}
 
+	// After successful verification, store the current user's account information
 	madonClient, err := mastodonClient.getMadonClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get madon client: %w", err)
+	}
+
+	// Get and store current user account information
+	account, err := madonClient.GetCurrentAccount()
+	if err != nil {
+		zlog.Warn().Err(err).Msg("Failed to get current account information")
+	} else {
+		userAccount := &UserAccount{
+			AccountID:   string(account.ID),
+			Username:    account.Username,
+			DisplayName: account.DisplayName,
+			Acct:        account.Acct,
+			Avatar:      account.Avatar,
+		}
+
+		if err := s.db.insertUserAccount(userAccount); err != nil {
+			zlog.Warn().Err(err).Msg("Failed to store user account information")
+			// Don't fail the creation if we can't store the account info
+		} else {
+			zlog.Info().Str("account_id", userAccount.AccountID).Str("username", userAccount.Username).Msg("Stored user account information")
+		}
 	}
 
 	maxRetries := 3

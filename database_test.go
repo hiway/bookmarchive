@@ -766,7 +766,7 @@ func TestDatabase_GetRecentBookmarks_Success(t *testing.T) {
 		}
 	}
 
-	results, err := db.getRecentBookmarks(10, 0)
+	results, err := db.getRecentBookmarks(10, 0, "")
 	if err != nil {
 		t.Fatalf("Expected successful recent bookmarks retrieval, got error: %v", err)
 	}
@@ -811,7 +811,7 @@ func TestDatabase_GetRecentBookmarks_LimitAndOffset(t *testing.T) {
 	}
 
 	// Test limit
-	results, err := db.getRecentBookmarks(2, 0)
+	results, err := db.getRecentBookmarks(2, 0, "")
 	if err != nil {
 		t.Fatalf("Expected successful retrieval with limit, got error: %v", err)
 	}
@@ -821,7 +821,7 @@ func TestDatabase_GetRecentBookmarks_LimitAndOffset(t *testing.T) {
 	}
 
 	// Test offset
-	results, err = db.getRecentBookmarks(2, 2)
+	results, err = db.getRecentBookmarks(2, 2, "")
 	if err != nil {
 		t.Fatalf("Expected successful retrieval with offset, got error: %v", err)
 	}
@@ -836,13 +836,13 @@ func TestDatabase_GetRecentBookmarks_DefaultLimits(t *testing.T) {
 	defer db.close()
 
 	// Test default limit (should default to 100)
-	_, err := db.getRecentBookmarks(0, 0)
+	_, err := db.getRecentBookmarks(0, 0, "")
 	if err != nil {
 		t.Errorf("Expected successful retrieval with default limit, got error: %v", err)
 	}
 
 	// Test negative offset (should default to 0)
-	_, err = db.getRecentBookmarks(10, -5)
+	_, err = db.getRecentBookmarks(10, -5, "")
 	if err != nil {
 		t.Errorf("Expected successful retrieval with negative offset, got error: %v", err)
 	}
@@ -852,7 +852,7 @@ func TestDatabase_GetRecentBookmarks_EmptyDatabase(t *testing.T) {
 	db := setupTestDatabase(t)
 	defer db.close()
 
-	results, err := db.getRecentBookmarks(10, 0)
+	results, err := db.getRecentBookmarks(10, 0, "")
 	if err != nil {
 		t.Errorf("Expected no error for empty database, got: %v", err)
 	}
@@ -865,7 +865,7 @@ func TestDatabase_GetRecentBookmarks_EmptyDatabase(t *testing.T) {
 func TestDatabase_GetRecentBookmarks_NilDatabase(t *testing.T) {
 	db := &Database{db: nil}
 
-	_, err := db.getRecentBookmarks(10, 0)
+	_, err := db.getRecentBookmarks(10, 0, "")
 	if err == nil {
 		t.Error("Expected error when getting recent bookmarks from nil database")
 	}

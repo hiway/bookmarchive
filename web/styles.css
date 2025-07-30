@@ -171,6 +171,30 @@ body {
     outline: none;
 }
 
+.account-filter {
+    padding: 0.75rem 0.5rem;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 0.9rem;
+    outline: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 100px;
+}
+
+.account-filter:hover,
+.account-filter:focus {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.account-filter option {
+    background: #2d3748;
+    color: white;
+    padding: 0.5rem;
+}
+
 .search-help {
     position: absolute;
     top: 100%;
@@ -559,6 +583,12 @@ body {
     
     .toolbar-content {
         padding: 0.5rem 0.75rem;
+    }
+    
+    .account-filter {
+        min-width: 80px;
+        padding: 0.75rem 0.4rem;
+        font-size: 0.8rem;
     }
 }
 

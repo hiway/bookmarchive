@@ -3,6 +3,7 @@ class BookmarchiveClient {
     constructor() {
         this.searchInput = document.getElementById('search-input');
         this.searchForm = document.getElementById('search-form');
+        this.accountFilter = document.getElementById('account-filter');
         this.resultsContainer = document.getElementById('results-container');
         this.searchStatus = document.getElementById('search-status');
         this.loadingIndicator = document.getElementById('loading-indicator');
@@ -48,6 +49,11 @@ class BookmarchiveClient {
             if (e.key === 'Escape') {
                 this.clearSearch();
             }
+        });
+
+        // Account filter change
+        this.accountFilter.addEventListener('change', () => {
+            this.handleFilterChange();
         });
 
         // Handle result navigation with arrow keys
@@ -215,11 +221,23 @@ class BookmarchiveClient {
         }, 300);
     }
 
+    handleFilterChange() {
+        const query = this.searchInput.value.trim();
+        
+        if (query) {
+            // If there's a search query, perform search with new filter
+            this.performSearch();
+        } else {
+            // If no search query, reload recent bookmarks with new filter
+            this.loadRecentBookmarks();
+        }
+    }
+
     async performSearch() {
         const query = this.searchInput.value.trim();
         
         if (!query) {
-            this.clearResults();
+            this.loadRecentBookmarks();
             return;
         }
 
@@ -241,7 +259,8 @@ class BookmarchiveClient {
                     limit: 50,
                     offset: 0,
                     enable_highlighting: true,
-                    snippet_length: 200
+                    snippet_length: 200,
+                    filter_by_account: this.accountFilter.value
                 })
             });
 
@@ -571,7 +590,8 @@ class BookmarchiveClient {
                     limit: 20,
                     offset: 0,
                     enable_highlighting: false,
-                    snippet_length: 200
+                    snippet_length: 200,
+                    filter_by_account: this.accountFilter.value
                 })
             });
 
